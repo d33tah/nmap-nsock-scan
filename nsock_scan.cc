@@ -1,6 +1,6 @@
 
 /***************************************************************************
- * nsock_scan.h -- Nmap's connect() scan implemented using nsock library.
+ * nsock_scan.cc -- Nmap's connect() scan implemented using nsock library.
  *                                                                         *
  ***********************IMPORTANT NMAP LICENSE TERMS************************
  *                                                                         *
