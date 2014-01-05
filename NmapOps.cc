@@ -331,7 +331,7 @@ void NmapOps::Initialize() {
   pingtype = PINGTYPE_UNKNOWN;
   listscan = allowall = ackscan = bouncescan = connectscan = 0;
   nullscan = xmasscan = fragscan = synscan = windowscan = 0;
-  maimonscan = idlescan = finscan = udpscan = ipprotscan = 0;
+  maimonscan = idlescan = finscan = udpscan = ipprotscan = nsockscan = 0;
   noportscan = noresolve = 0;
   sctpinitscan = 0;
   sctpcookieechoscan = 0;
@@ -428,7 +428,7 @@ dialog where you can start NPF if you have administrator privileges.";
 
 
   /* Insure that at least one scantype is selected */
-  if (!noportscan && !(TCPScan() || UDPScan() || SCTPScan() || ipprotscan)) {
+  if (!noportscan && !(TCPScan() || UDPScan() || SCTPScan() || ipprotscan || nsockscan )) {
     if (isr00t)
       synscan++;
     else connectscan++;

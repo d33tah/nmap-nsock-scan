@@ -136,6 +136,7 @@
 #include "nmap_tty.h"
 #include "nmap_dns.h"
 #include "nmap_ftp.h"
+#include "nsock_scan.h"
 #include "services.h"
 #include "protocols.h"
 #include "targets.h"
@@ -1238,6 +1239,9 @@ void parse_options(int argc, char **argv) {
         case 'S':
           o.synscan = 1;
           break;
+        case 'D':
+          o.nsockscan = 1;
+          break;
         case 'T':
           o.connectscan = 1;
           break;
@@ -1750,7 +1754,7 @@ int nmap_main(int argc, char *argv[]) {
   /* Before we randomize the ports scanned, we must initialize PortList class. */
   if (o.ipprotscan)
     PortList::initializePortMap(IPPROTO_IP,  ports.prots, ports.prot_count);
-  if (o.TCPScan())
+  if (o.TCPScan() || o.nsockscan)
     PortList::initializePortMap(IPPROTO_TCP, ports.tcp_ports, ports.tcp_count);
   if (o.UDPScan())
     PortList::initializePortMap(IPPROTO_UDP, ports.udp_ports, ports.udp_count);
@@ -1947,6 +1951,9 @@ int nmap_main(int argc, char *argv[]) {
 
       if (o.ipprotscan)
         ultra_scan(Targets, &ports, IPPROT_SCAN);
+
+      if (o.nsockscan)
+        nsock_scan(Targets, ports.tcp_ports, ports.tcp_count);
 
       /* These lame functions can only handle one target at a time */
       if (o.idlescan) {
@@ -2322,7 +2329,7 @@ void getpts(const char *origexpr, struct scan_lists *ports) {
   int portwarning = 0;
   int i, tcpi, udpi, sctpi, proti;
 
-  if (o.TCPScan())
+  if (o.TCPScan() || o.nsockscan)
     range_type |= SCAN_TCP_PORT;
   if (o.UDPScan())
     range_type |= SCAN_UDP_PORT;

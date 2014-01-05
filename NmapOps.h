@@ -326,6 +326,7 @@ class NmapOps {
   char* idleProxy; /* The idle host used to "Proxy" an idle scan */
   int ipprotscan;
   int maimonscan;
+  int nsockscan;
   int nullscan;
   int synscan;
   int udpscan;
