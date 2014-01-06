@@ -196,5 +196,6 @@ void nsock_scan(std::vector<Target *> &Targets, u16 *portarray, int numports) {
   }
 
   nsock_loop(mypool, -1);
+  nsp_delete(mypool);
 }
 
