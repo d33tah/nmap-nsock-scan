@@ -155,6 +155,7 @@
     <ClCompile Include="..\nse_openssl.cc" />
     <ClCompile Include="..\nse_pcrelib.cc" />
     <ClCompile Include="..\nse_ssl_cert.cc" />
+    <ClCompile Include="..\nsock_scan.cc" />
     <ClCompile Include="..\osscan.cc" />
     <ClCompile Include="..\osscan2.cc" />
     <ClCompile Include="..\output.cc" />
@@ -207,6 +208,7 @@
     <ClInclude Include="..\nse_openssl.h" />
     <ClInclude Include="..\nse_pcrelib.h" />
     <ClInclude Include="..\nse_ssl_cert.h" />
+    <ClInclude Include="..\nsock_scan.h" />
     <ClInclude Include="..\osscan.h" />
     <ClInclude Include="..\osscan2.h" />
     <ClInclude Include="..\output.h" />
