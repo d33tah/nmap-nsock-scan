@@ -126,9 +126,10 @@
 #include "nsock_scan.h"
 #include "nmap_error.h"
 
-struct target_port_pair {
+struct target_port_entry {
   Target *target;
   unsigned short portno;
+  nsock_iod sock_nsi;
 };
 
 void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
@@ -138,19 +139,21 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
   assert(type == NSE_TYPE_CONNECT);
 
-  struct target_port_pair *target_port_pair = (struct target_port_pair *)data;
-  Target * target = target_port_pair->target;
+  struct target_port_entry *target_port_entry = (struct target_port_entry *)data;
+  Target * target = target_port_entry->target;
 
   if (status == NSE_STATUS_ERROR) {
-    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_CLOSED);
+    target->ports.setPortState(target_port_entry->portno, IPPROTO_TCP, PORT_CLOSED);
   } else if (status == NSE_STATUS_TIMEOUT) {
-    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_FILTERED);
+    target->ports.setPortState(target_port_entry->portno, IPPROTO_TCP, PORT_FILTERED);
   } else {
     assert(status == NSE_STATUS_SUCCESS);
-    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_OPEN);
+    target->ports.setPortState(target_port_entry->portno, IPPROTO_TCP, PORT_OPEN);
   }
 
-  free(target_port_pair);
+  nsi_delete(target_port_entry->sock_nsi, NSOCK_PENDING_NOTIFY);
+
+  free(target_port_entry);
 
   /* TODO: disconnect */
 }
@@ -172,23 +175,23 @@ void nsock_scan(std::vector<Target *> &Targets, u16 *portarray, int numports) {
       const char *t = (const char *)target->v4hostip();
       struct sockaddr_storage targetss;
       size_t targetsslen;
-      struct target_port_pair *target_port_pair = (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
+      struct target_port_entry *target_port_entry = (struct target_port_entry *)safe_malloc(sizeof(struct target_port_entry));
 
       Snprintf(targetstr, 20, "%d.%d.%d.%d", UC(t[0]), UC(t[1]), UC(t[2]), UC(t[3]));
 
-      nsock_iod sock_nsi = nsi_new(mypool, NULL);
-      if (sock_nsi == NULL)
+      target_port_entry->sock_nsi = nsi_new(mypool, NULL);
+      if (target_port_entry->sock_nsi == NULL)
         fatal("Failed to create nsock_iod.");
-      if (nsi_set_hostname(sock_nsi, targetstr) == -1)
+      if (nsi_set_hostname(target_port_entry->sock_nsi, targetstr) == -1)
         fatal("Failed to set hostname on iod.");
       if (target->TargetSockAddr(&targetss, &targetsslen) != 0)
         fatal("Failed to get target socket address in %s", __func__);
 
-      target_port_pair->target = target;
-      target_port_pair->portno = portno;
-      nsock_connect_tcp(mypool, sock_nsi, connect_handler,
+      target_port_entry->target = target;
+      target_port_entry->portno = portno;
+      nsock_connect_tcp(mypool, target_port_entry->sock_nsi, connect_handler,
                         10000, /* timeout */
-                        (void *)target_port_pair,
+                        (void *)target_port_entry,
                         (struct sockaddr *)&targetss, targetsslen,
                         portno);
 
