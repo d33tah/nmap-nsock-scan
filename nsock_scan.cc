@@ -147,7 +147,8 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   int reason_id;
 
   if (status == NSE_STATUS_ERROR) {
-    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_CLOSED);
+    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP,
+                               PORT_CLOSED);
     int connect_errno = nse_errorcode(evt);
     switch (connect_errno) {
       /* This can happen on localhost, successful/failing connection
@@ -171,11 +172,13 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
       reason_id = ER_UNKNOWN;
     }
   } else if (status == NSE_STATUS_TIMEOUT) {
-    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_FILTERED);
+    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP,
+                               PORT_FILTERED);
     reason_id = ER_NORESPONSE;
   } else {
     assert(status == NSE_STATUS_SUCCESS);
-    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_OPEN);
+    target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP,
+                               PORT_OPEN);
     reason_id = ER_SYNACK;
   }
 
@@ -206,9 +209,11 @@ void nsock_scan(std::vector<Target *> &Targets, u16 *portarray, int numports) {
       const char *t = (const char *)target->v4hostip();
       struct sockaddr_storage targetss;
       size_t targetsslen;
-      struct target_port_pair *target_port_pair = (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
+      struct target_port_pair *target_port_pair =
+        (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
 
-      Snprintf(targetstr, 20, "%d.%d.%d.%d", UC(t[0]), UC(t[1]), UC(t[2]), UC(t[3]));
+      Snprintf(targetstr, 20, "%d.%d.%d.%d", UC(t[0]), UC(t[1]),
+                                             UC(t[2]), UC(t[3]));
 
       nsock_iod sock_nsi = nsi_new(mypool, NULL);
       if (sock_nsi == NULL)
