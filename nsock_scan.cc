@@ -125,6 +125,9 @@
 
 #include "nsock_scan.h"
 #include "nmap_error.h"
+#include "NmapOps.h"
+
+extern NmapOps o;
 
 struct target_port_pair {
   Target *target;
@@ -141,15 +144,43 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
   struct target_port_pair *target_port_pair = (struct target_port_pair *)data;
   Target * target = target_port_pair->target;
+  int reason_id;
 
   if (status == NSE_STATUS_ERROR) {
     target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_CLOSED);
+    int connect_errno = nse_errorcode(evt);
+    switch (connect_errno) {
+      /* This can happen on localhost, successful/failing connection
+         immediately in non-blocking mode. */
+    case ECONNREFUSED:
+      reason_id = ER_CONREFUSED;
+      break;
+    case ENETUNREACH:
+      if (o.debugging)
+        log_write(LOG_STDOUT, "Got ENETUNREACH from %s connect()\n", __func__);
+      reason_id = ER_NETUNREACH;
+      break;
+    case EACCES:
+      if (o.debugging)
+        log_write(LOG_STDOUT, "Got EACCES from %s connect()\n", __func__);
+      reason_id = ER_ACCES;
+      break;
+    default:
+      /* TODO: ultra_scan.cc checks for connecterror and if it's false, reports
+               a debug message here. Perhaps it's possible here as well? */
+      reason_id = ER_UNKNOWN;
+    }
   } else if (status == NSE_STATUS_TIMEOUT) {
     target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_FILTERED);
+    reason_id = ER_NORESPONSE;
   } else {
     assert(status == NSE_STATUS_SUCCESS);
     target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP, PORT_OPEN);
+    reason_id = ER_SYNACK;
   }
+
+  target->ports.setStateReason(target_port_pair->portno, IPPROTO_TCP,
+                               reason_id, 0, NULL);
 
   nsi_delete(nsi, NSOCK_PENDING_NOTIFY);
 
