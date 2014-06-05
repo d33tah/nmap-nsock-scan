@@ -134,8 +134,24 @@ struct target_port_pair {
   unsigned short portno;
 };
 
+bool handle_next_host();
+
+std::vector<Target *>::iterator current_target;
+std::vector<Target *> Targets;
+int current_port_idx;
+u16 *portarray;
+int numports;
+nsock_pool mypool;
+int scanning_now_count = 0;
+
+static inline int get_max_parallelism() {
+  return o.max_parallelism ? o.max_parallelism : 300;
+}
+
 void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 {
+  scanning_now_count--;
+
   enum nse_status status = nse_status(evt);
   enum nse_type type = nse_type(evt);
   nsock_iod nsi = nse_iod(evt);
@@ -189,49 +205,73 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
   free(target_port_pair);
 
+  handle_next_host();
+
   /* TODO: disconnect */
 }
 
-void nsock_scan(std::vector<Target *> &Targets, u16 *portarray, int numports) {
+bool handle_next_host() {
 
-  nsock_pool mypool = nsp_new(NULL);
+  if (current_target == Targets.end()) {
+    current_port_idx++;
+    if (current_port_idx >= numports) {
+      return false;
+    }
+    current_target = Targets.begin();
+  }
+
+  unsigned short portno = portarray[current_port_idx];
+  Target *target = *current_target;
+  const char *t = (const char *)target->v4hostip();
+  char targetstr[20];
+  struct sockaddr_storage targetss;
+  size_t targetsslen;
+  struct target_port_pair *target_port_pair =
+    (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
+
+  Snprintf(targetstr, 20, "%d.%d.%d.%d", UC(t[0]), UC(t[1]),
+                                         UC(t[2]), UC(t[3]));
+
+  nsock_iod sock_nsi = nsi_new(mypool, NULL);
+  if (sock_nsi == NULL)
+    fatal("Failed to create nsock_iod.");
+  if (nsi_set_hostname(sock_nsi, targetstr) == -1)
+    fatal("Failed to set hostname on iod.");
+  if (target->TargetSockAddr(&targetss, &targetsslen) != 0)
+    fatal("Failed to get target socket address in %s", __func__);
+
+  target_port_pair->target = target;
+  target_port_pair->portno = portno;
+  nsock_connect_tcp(mypool, sock_nsi, connect_handler,
+                    1000, /* timeout */
+                    (void *)target_port_pair,
+                    (struct sockaddr *)&targetss, targetsslen,
+                    portno);
+  current_target++;
+  return true;
+}
+
+void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int numports_arg) {
+
+  //nsock_set_default_engine("select");
+  portarray = portarray_arg;
+  numports = numports_arg;
+  Targets = Targets_arg;
+  scanning_now_count = 0;
+
+  mypool = nsp_new(NULL);
   if (mypool == NULL)
     fatal("Failed to create nsock_pool.");
 
-  for (int i = 0; i < numports; i++) {
-
-    unsigned short portno = portarray[i];
-
-    for (unsigned int j = 0; j < Targets.size(); j++) {
-
-      char targetstr[20];
-      Target *target = Targets[j];
-      const char *t = (const char *)target->v4hostip();
-      struct sockaddr_storage targetss;
-      size_t targetsslen;
-      struct target_port_pair *target_port_pair =
-        (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
-
-      Snprintf(targetstr, 20, "%d.%d.%d.%d", UC(t[0]), UC(t[1]),
-                                             UC(t[2]), UC(t[3]));
-
-      nsock_iod sock_nsi = nsi_new(mypool, NULL);
-      if (sock_nsi == NULL)
-        fatal("Failed to create nsock_iod.");
-      if (nsi_set_hostname(sock_nsi, targetstr) == -1)
-        fatal("Failed to set hostname on iod.");
-      if (target->TargetSockAddr(&targetss, &targetsslen) != 0)
-        fatal("Failed to get target socket address in %s", __func__);
-
-      target_port_pair->target = target;
-      target_port_pair->portno = portno;
-      nsock_connect_tcp(mypool, sock_nsi, connect_handler,
-                        10000, /* timeout */
-                        (void *)target_port_pair,
-                        (struct sockaddr *)&targetss, targetsslen,
-                        portno);
-
-    }
+  current_port_idx = -1;
+  current_target = Targets.end();
+  while(true) {
+    if (scanning_now_count < get_max_parallelism()) {
+      scanning_now_count++;
+      if(!handle_next_host())
+        break;
+    } else
+      break;
   }
 
   nsock_loop(mypool, -1);
