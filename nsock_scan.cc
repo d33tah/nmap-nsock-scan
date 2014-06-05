@@ -206,8 +206,6 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   free(target_port_pair);
 
   handle_next_host();
-
-  /* TODO: disconnect */
 }
 
 bool handle_next_host() {
