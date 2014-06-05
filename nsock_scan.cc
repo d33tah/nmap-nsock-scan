@@ -208,18 +208,7 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   handle_next_host();
 }
 
-bool handle_next_host() {
-
-  if (current_target == Targets.end()) {
-    current_port_idx++;
-    if (current_port_idx >= numports) {
-      return false;
-    }
-    current_target = Targets.begin();
-  }
-
-  unsigned short portno = portarray[current_port_idx];
-  Target *target = *current_target;
+void make_connection(Target *target, unsigned short portno) {
   const char *t = (const char *)target->v4hostip();
   char targetstr[20];
   struct sockaddr_storage targetss;
@@ -245,6 +234,36 @@ bool handle_next_host() {
                     (void *)target_port_pair,
                     (struct sockaddr *)&targetss, targetsslen,
                     portno);
+}
+
+void sleep_callback(nsock_pool nsp, nsock_event evt, void *data) {
+  assert(nse_status(evt) == NSE_STATUS_SUCCESS);
+  struct target_port_pair *target_port_pair = (struct target_port_pair *)data;
+  make_connection(target_port_pair->target, target_port_pair->portno);
+}
+
+void schedule_scan(int msecs, Target *target, unsigned short portno) {
+  struct target_port_pair *target_port_pair =
+    (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
+
+  target_port_pair->target = target;
+  target_port_pair->portno = portno;
+  nsock_timer_create(mypool, sleep_callback, msecs, target_port_pair);
+}
+
+bool handle_next_host() {
+
+  if (current_target == Targets.end()) {
+    current_port_idx++;
+    if (current_port_idx >= numports) {
+      return false;
+    }
+    current_target = Targets.begin();
+  }
+
+  unsigned short portno = portarray[current_port_idx];
+  Target *target = *current_target;
+  make_connection(target, portno);
   current_target++;
   return true;
 }
