@@ -113,7 +113,7 @@ static SSL_CTX *ssl_init_common() {
  * so you can set your own options. */
 nsock_ssl_ctx nsp_ssl_init(nsock_pool ms_pool) {
 #if HAVE_OPENSSL
-  mspool *ms = (mspool *)ms_pool;
+  struct npool *ms = (struct npool *)ms_pool;
   char rndbuf[128];
 
   if (ms->sslctx == NULL)
@@ -159,7 +159,7 @@ nsock_ssl_ctx nsp_ssl_init(nsock_pool ms_pool) {
  * verification is done. Returns the SSL_CTX so you can set your own options. */
 nsock_ssl_ctx nsp_ssl_init_max_speed(nsock_pool ms_pool) {
 #if HAVE_OPENSSL
-  mspool *ms = (mspool *)ms_pool;
+  struct npool *ms = (struct npool *)ms_pool;
   char rndbuf[128];
 
   if (ms->sslctx == NULL)
@@ -190,7 +190,7 @@ nsock_ssl_ctx nsp_ssl_init_max_speed(nsock_pool ms_pool) {
  * always returns true. */
 int nsi_ssl_post_connect_verify(const nsock_iod nsockiod) {
 #if HAVE_OPENSSL
-  msiod *iod = (msiod *)nsockiod;
+  struct niod *iod = (struct niod *)nsockiod;
 
   assert(iod->ssl != NULL);
   if (SSL_get_verify_mode(iod->ssl) != SSL_VERIFY_NONE) {
