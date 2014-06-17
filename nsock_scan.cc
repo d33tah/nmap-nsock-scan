@@ -271,6 +271,9 @@ bool handle_next_host() {
 void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int numports_arg) {
 
   //nsock_set_default_engine("select");
+  if (o.debugging)
+    log_write(LOG_STDOUT, "nsock_scan() begins.\n");
+
   portarray = portarray_arg;
   numports = numports_arg;
   Targets = Targets_arg;
