@@ -473,7 +473,7 @@ void gettoppts(double level, char *portlist, struct scan_lists * ports) {
       if (ptsdata_initialized && !is_port_member(&ptsdata, current))
         continue;
       if (current->ratio >= level) {
-        if ((o.TCPScan() || o.nsockscan) && strcmp(current->s_proto, "tcp") == 0)
+        if (o.TCPScan() && strcmp(current->s_proto, "tcp") == 0)
           ports->tcp_count++;
         else if (o.UDPScan() && strcmp(current->s_proto, "udp") == 0)
           ports->udp_count++;
@@ -500,7 +500,7 @@ void gettoppts(double level, char *portlist, struct scan_lists * ports) {
       if (ptsdata_initialized && !is_port_member(&ptsdata, current))
         continue;
       if (current->ratio >= level) {
-        if ((o.TCPScan() || o.nsockscan) && strcmp(current->s_proto, "tcp") == 0)
+        if (o.TCPScan() && strcmp(current->s_proto, "tcp") == 0)
           ports->tcp_ports[ti++] = current->s_port;
         else if (o.UDPScan() && strcmp(current->s_proto, "udp") == 0)
           ports->udp_ports[ui++] = current->s_port;
@@ -514,7 +514,7 @@ void gettoppts(double level, char *portlist, struct scan_lists * ports) {
     if (level > 65536)
       fatal("Level argument to gettoppts (%g) is too large", level);
 
-    if (o.TCPScan() || o.nsockscan) {
+    if (o.TCPScan()) {
       ports->tcp_count = MIN((int) level, numtcpports);
       ports->tcp_ports = (unsigned short *)safe_zalloc(ports->tcp_count * sizeof(unsigned short));
     }
@@ -533,7 +533,7 @@ void gettoppts(double level, char *portlist, struct scan_lists * ports) {
       current = &(*i);
       if (ptsdata_initialized && !is_port_member(&ptsdata, current))
         continue;
-      if ((o.TCPScan() || o.nsockscan) && strcmp(current->s_proto, "tcp") == 0 && ti < ports->tcp_count)
+      if (o.TCPScan() && strcmp(current->s_proto, "tcp") == 0 && ti < ports->tcp_count)
         ports->tcp_ports[ti++] = current->s_port;
       else if (o.UDPScan() && strcmp(current->s_proto, "udp") == 0 && ui < ports->udp_count)
         ports->udp_ports[ui++] = current->s_port;
