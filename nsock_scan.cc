@@ -155,7 +155,8 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   assert(type == NSE_TYPE_CONNECT);
 
   struct target_port_pair *target_port_pair = (struct target_port_pair *)data;
-  Target * target = target_port_pair->target;
+  Target *target = target_port_pair->target;
+
   int reason_id;
 
   if (status == NSE_STATUS_ERROR) {
@@ -301,4 +302,3 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
 
   nsp_delete(mypool);
 }
-
