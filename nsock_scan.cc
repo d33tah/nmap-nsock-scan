@@ -130,7 +130,7 @@
 extern NmapOps o;
 
 class NsockProbe {
-  public:
+public:
   Target *target;
   unsigned short portno;
 };
