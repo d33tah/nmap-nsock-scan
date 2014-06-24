@@ -142,12 +142,9 @@ int current_port_idx;
 u16 *portarray;
 int numports;
 nsock_pool mypool;
-int scanning_now_count = 0;
 
 void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 {
-  scanning_now_count--;
-
   enum nse_status status = nse_status(evt);
   enum nse_type type = nse_type(evt);
   nsock_iod nsi = nse_iod(evt);
@@ -274,13 +271,14 @@ static inline int get_max_parallelism() {
 
 void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int numports_arg) {
 
+  int scanning_now_count = 0;
+
   if (o.debugging)
     log_write(LOG_STDOUT, "nsock_scan() begins.\n");
 
   portarray = portarray_arg;
   numports = numports_arg;
   Targets = Targets_arg;
-  scanning_now_count = 0;
 
   mypool = nsp_new(NULL);
   if (mypool == NULL)
