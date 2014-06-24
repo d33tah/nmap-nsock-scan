@@ -133,9 +133,11 @@ class NsockProbe {
 public:
   Target *target;
   unsigned short portno;
+  u8 tryno;
 };
 
 bool send_next_probe();
+void make_connection(Target *target, unsigned short portno, int tryno);
 
 std::vector<Target *>::iterator next_target;
 std::vector<Target *> Targets;
@@ -143,6 +145,7 @@ int current_port_idx;
 u16 *portarray;
 int numports;
 nsock_pool mypool;
+int max_tryno = 1;
 
 /* Handles a scheduled probe timer. For more details, see the definition. */
 void scheduled_probe_callback(nsock_pool nsp, nsock_event evt, void *data);
@@ -207,14 +210,32 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
   /* Close the socket immediately and get rid of the probe. */
   nsi_delete(nsi, NSOCK_PENDING_NOTIFY);
-  delete probe;
 
-  /* Schedule another probe to keep a constant number of these. */
-  send_next_probe();
+  if (status != NSE_STATUS_TIMEOUT) {
+    /* If this was either a closed or open port, just go on. */
+    send_next_probe();
+  } else {
+    /* Otherwise, let's see if we can retry the probe to make sure it's
+       filtered. */
+    if (probe->tryno < max_tryno + 1) {
+      if (o.debugging)
+        log_write(LOG_STDOUT, "Retrying the probe to %s:%d\n",
+                  probe->target->targetipstr(), probe->portno);
+      make_connection(probe->target, probe->portno, probe->tryno + 1);
+    } else {
+      /* We can't retry the probe, so let's send next "normal" probe to keep
+         the number of outstanding probes. */
+      if (o.verbose)
+         log_write(LOG_STDOUT, "Giving up on %s:%d\n",
+                  probe->target->targetipstr(), probe->portno);
+      send_next_probe();
+    }
+  }
+  delete probe;
 }
 
 /* Start a nsock connection to the given target on a given port. */
-void make_connection(Target *target, unsigned short portno) {
+void make_connection(Target *target, unsigned short portno, int tryno) {
 
   /* Translate target's IP to struct sockaddr_storage. */
   struct sockaddr_storage targetss;
@@ -231,6 +252,7 @@ void make_connection(Target *target, unsigned short portno) {
   NsockProbe *probe = new NsockProbe();
   probe->target = target;
   probe->portno = portno;
+  probe->tryno = tryno;
   nsock_connect_tcp(mypool, sock_nsi, connect_handler,
                     1000, /* timeout */
                     (void *)probe,
@@ -252,7 +274,7 @@ void schedule_probe(int msecs, Target *target, unsigned short portno) {
 void scheduled_probe_callback(nsock_pool nsp, nsock_event evt, void *data) {
   assert(nse_status(evt) == NSE_STATUS_SUCCESS);
   NsockProbe *probe = (NsockProbe *)data;
-  make_connection(probe->target, probe->portno);
+  make_connection(probe->target, probe->portno, 0);
 }
 
 /* Fires another probe. Returns false if all probes were sent. */
@@ -269,7 +291,7 @@ bool send_next_probe() {
   unsigned short portno = portarray[current_port_idx];
   Target *target = *next_target;
   next_target++;
-  make_connection(target, portno);
+  make_connection(target, portno, 0);
   return true;
 }
 
