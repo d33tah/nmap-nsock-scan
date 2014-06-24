@@ -175,12 +175,9 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
       reason_id = ER_CONREFUSED;
       break;
     case ENETUNREACH:
-      /* This is fatal, because I can't currently think of a way to schedule
-         another probe without risking a stack overflow. ENETUNREACH is
-         detected outside of the main loop in Nsock in a way that would make
-         another nsock_connect_* call make the stack bigger, eventually causing
-         segmentation fault. TODO: find a workaround for that. */
-      fatal("Got ENETUNREACH from %s connect()\n", __func__);
+      if (o.debugging)
+        log_write(LOG_STDOUT, "Got ENETUNREACH from %s connect()\n", __func__);
+      reason_id = ER_NETUNREACH;
       break;
     case EACCES:
       if (o.debugging)
@@ -271,8 +268,8 @@ bool handle_next_host() {
 
   unsigned short portno = portarray[current_port_idx];
   Target *target = *current_target;
-  make_connection(target, portno);
   current_target++;
+  make_connection(target, portno);
   return true;
 }
 
