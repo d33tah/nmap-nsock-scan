@@ -297,7 +297,8 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
   if (mypool == NULL)
     fatal("Failed to create nsock_pool.");
 
-  /* Schedule the first probes. */
+  /* Schedule the first probes. Setting current_port_idx to -1 and next_target
+     to Targets.end() will force a reset in the next send_next_probe() call. */
   current_port_idx = -1;
   next_target = Targets.end();
   while(true) {
