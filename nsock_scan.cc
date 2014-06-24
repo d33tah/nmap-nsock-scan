@@ -206,24 +206,19 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 }
 
 void make_connection(Target *target, unsigned short portno) {
-  const char *t = (const char *)target->v4hostip();
-  char targetstr[20];
   struct sockaddr_storage targetss;
   size_t targetsslen;
-  struct target_port_pair *target_port_pair =
-    (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
-
-  Snprintf(targetstr, 20, "%d.%d.%d.%d", UC(t[0]), UC(t[1]),
-                                         UC(t[2]), UC(t[3]));
-
   nsock_iod sock_nsi = nsi_new(mypool, NULL);
   if (sock_nsi == NULL)
     fatal("Failed to create nsock_iod.");
-  if (nsi_set_hostname(sock_nsi, targetstr) == -1)
+  if (nsi_set_hostname(sock_nsi, target->targetipstr()) == -1)
     fatal("Failed to set hostname on iod.");
   if (target->TargetSockAddr(&targetss, &targetsslen) != 0)
     fatal("Failed to get target socket address in %s", __func__);
 
+  /* Prepare struct target_port_pair and run nsock_connect_tcp. */
+  struct target_port_pair *target_port_pair =
+    (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
   target_port_pair->target = target;
   target_port_pair->portno = portno;
   nsock_connect_tcp(mypool, sock_nsi, connect_handler,
