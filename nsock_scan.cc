@@ -314,7 +314,8 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
   enum nsock_loopstatus looprc = nsock_loop(mypool, -1);
   if (looprc == NSOCK_LOOP_ERROR) {
     int err = nsp_geterrorcode(mypool);
-    fatal("nsock_scan: unexpected nsock_loop error.  Error code %d (%s)", err, socket_strerror(err));
+    fatal("nsock_scan: unexpected nsock_loop error.  Error code %d (%s)", err,
+          socket_strerror(err));
   }
 
   /* The main loop is done and so is nsock_scan. Destroy the pool. */
