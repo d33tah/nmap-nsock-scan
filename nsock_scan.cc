@@ -137,7 +137,7 @@ public:
 
 bool handle_next_host();
 
-std::vector<Target *>::iterator current_target;
+std::vector<Target *>::iterator next_target;
 std::vector<Target *> Targets;
 int current_port_idx;
 u16 *portarray;
@@ -258,17 +258,17 @@ void sleep_callback(nsock_pool nsp, nsock_event evt, void *data) {
 /* Fires another probe. Returns false if all probes were sent. */
 bool handle_next_host() {
 
-  if (current_target == Targets.end()) {
+  if (next_target == Targets.end()) {
     current_port_idx++;
     if (current_port_idx >= numports) {
       return false;
     }
-    current_target = Targets.begin();
+    next_target = Targets.begin();
   }
 
   unsigned short portno = portarray[current_port_idx];
-  Target *target = *current_target;
-  current_target++;
+  Target *target = *next_target;
+  next_target++;
   make_connection(target, portno);
   return true;
 }
@@ -299,7 +299,7 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
 
   /* Schedule the first probes. */
   current_port_idx = -1;
-  current_target = Targets.end();
+  next_target = Targets.end();
   while(true) {
     if (scanning_now_count < get_max_parallelism()) {
       scanning_now_count++;
