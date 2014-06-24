@@ -144,10 +144,6 @@ int numports;
 nsock_pool mypool;
 int scanning_now_count = 0;
 
-static inline int get_max_parallelism() {
-  return o.max_parallelism ? o.max_parallelism : 300;
-}
-
 void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 {
   scanning_now_count--;
@@ -266,6 +262,10 @@ bool handle_next_host() {
   make_connection(target, portno);
   current_target++;
   return true;
+}
+
+static inline int get_max_parallelism() {
+  return o.max_parallelism ? o.max_parallelism : 300;
 }
 
 void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int numports_arg) {
