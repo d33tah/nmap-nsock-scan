@@ -143,6 +143,11 @@ u16 *portarray;
 int numports;
 nsock_pool mypool;
 
+/* Handles a scheduled probe timer. For more details, see the definition. */
+void sleep_callback(nsock_pool nsp, nsock_event evt, void *data);
+
+/* nsock_connect_* callback. This is where we the connect() result is
+   interpreted and new probes are scheduled. */
 void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 {
   enum nse_status status = nse_status(evt);
@@ -151,11 +156,15 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
   assert(type == NSE_TYPE_CONNECT);
 
+  /* Extract the pointer to target_port_pair and target from the event
+     arguments. */
   struct target_port_pair *target_port_pair = (struct target_port_pair *)data;
   Target *target = target_port_pair->target;
 
   int reason_id;
 
+  /* A lot of further behavior depends on the event's status. First, let's see
+     if it's some kind of an error and if so, which one... */
   if (status == NSE_STATUS_ERROR) {
     target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP,
                                PORT_CLOSED);
@@ -184,10 +193,15 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
                a debug message here. Perhaps it's possible here as well? */
       reason_id = ER_UNKNOWN;
     }
+
+  /* Handle the TCP connection timeout. For now we just assume that it's
+     dropped by the firewall, not congestion. */
   } else if (status == NSE_STATUS_TIMEOUT) {
     target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP,
                                PORT_FILTERED);
     reason_id = ER_NORESPONSE;
+
+  /* We managed to connect! */
   } else {
     assert(status == NSE_STATUS_SUCCESS);
     target->ports.setPortState(target_port_pair->portno, IPPROTO_TCP,
@@ -198,14 +212,18 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   target->ports.setStateReason(target_port_pair->portno, IPPROTO_TCP,
                                reason_id, 0, NULL);
 
+  /* Close the socket immediately and get rid of the target_port_pair. */
   nsi_delete(nsi, NSOCK_PENDING_NOTIFY);
-
   free(target_port_pair);
 
+  /* Schedule another probe to keep a constant number of these. */
   handle_next_host();
 }
 
+/* Start a nsock connection to the given target on a given port. */
 void make_connection(Target *target, unsigned short portno) {
+
+  /* Translate target's IP to struct sockaddr_storage. */
   struct sockaddr_storage targetss;
   size_t targetsslen;
   nsock_iod sock_nsi = nsi_new(mypool, NULL);
@@ -228,12 +246,8 @@ void make_connection(Target *target, unsigned short portno) {
                     portno);
 }
 
-void sleep_callback(nsock_pool nsp, nsock_event evt, void *data) {
-  assert(nse_status(evt) == NSE_STATUS_SUCCESS);
-  struct target_port_pair *target_port_pair = (struct target_port_pair *)data;
-  make_connection(target_port_pair->target, target_port_pair->portno);
-}
-
+/* An interface that can be used to schedule a particular probe after a given
+   number of miliseconds passed. */
 void schedule_scan(int msecs, Target *target, unsigned short portno) {
   struct target_port_pair *target_port_pair =
     (struct target_port_pair *)safe_malloc(sizeof(struct target_port_pair));
@@ -243,6 +257,15 @@ void schedule_scan(int msecs, Target *target, unsigned short portno) {
   nsock_timer_create(mypool, sleep_callback, msecs, target_port_pair);
 }
 
+/* Handles a scheduled probe timer. This is the timer callback for
+   schedule_scan. */
+void sleep_callback(nsock_pool nsp, nsock_event evt, void *data) {
+  assert(nse_status(evt) == NSE_STATUS_SUCCESS);
+  struct target_port_pair *target_port_pair = (struct target_port_pair *)data;
+  make_connection(target_port_pair->target, target_port_pair->portno);
+}
+
+/* Fires another probe. Returns false if all probes were sent. */
 bool handle_next_host() {
 
   if (current_target == Targets.end()) {
@@ -264,6 +287,8 @@ static inline int get_max_parallelism() {
   return o.max_parallelism ? o.max_parallelism : 300;
 }
 
+/* Main scanning function. Schedules the first probes and runs the nsock
+   main loop. */
 void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int numports_arg) {
 
   int scanning_now_count = 0;
@@ -271,14 +296,18 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
   if (o.debugging)
     log_write(LOG_STDOUT, "nsock_scan() begins.\n");
 
+  /* Initialize the global variables. Maybe I should move these to a new
+     NsockScanInfo class and make its instance global instead? */
   portarray = portarray_arg;
   numports = numports_arg;
   Targets = Targets_arg;
 
+  /* Initialize the Nsock pool. */
   mypool = nsp_new(NULL);
   if (mypool == NULL)
     fatal("Failed to create nsock_pool.");
 
+  /* Schedule the first probes. */
   current_port_idx = -1;
   current_target = Targets.end();
   while(true) {
@@ -290,11 +319,13 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
       break;
   }
 
+  /* Jump into the main loop. Handle any unexpected errors. */
   enum nsock_loopstatus looprc = nsock_loop(mypool, -1);
   if (looprc == NSOCK_LOOP_ERROR) {
     int err = nsp_geterrorcode(mypool);
     fatal("nsock_scan: unexpected nsock_loop error.  Error code %d (%s)", err, socket_strerror(err));
   }
 
+  /* The main loop is done and so is nsock_scan. Destroy the pool. */
   nsp_delete(mypool);
 }
