@@ -293,7 +293,12 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
       break;
   }
 
-  nsock_loop(mypool, -1);
+  enum nsock_loopstatus looprc = nsock_loop(mypool, -1);
+  if (looprc == NSOCK_LOOP_ERROR) {
+    int err = nsp_geterrorcode(mypool);
+    fatal("nsock_scan: unexpected nsock_loop error.  Error code %d (%s)", err, socket_strerror(err));
+  }
+
   nsp_delete(mypool);
 }
 
