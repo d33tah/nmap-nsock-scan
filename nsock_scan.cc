@@ -210,7 +210,7 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
   /* Close the socket immediately and get rid of the probe. */
   nsi_delete(nsi, NSOCK_PENDING_NOTIFY);
-  free(probe);
+  delete probe;
 
   /* Schedule another probe to keep a constant number of these. */
   handle_next_host();
@@ -231,7 +231,7 @@ void make_connection(Target *target, unsigned short portno) {
     fatal("Failed to get target socket address in %s", __func__);
 
   /* Prepare NsockProbe and run nsock_connect_tcp. */
-  NsockProbe *probe = (NsockProbe *)safe_malloc(sizeof(NsockProbe));
+  NsockProbe *probe = new NsockProbe();
   probe->target = target;
   probe->portno = portno;
   nsock_connect_tcp(mypool, sock_nsi, connect_handler,
@@ -244,7 +244,7 @@ void make_connection(Target *target, unsigned short portno) {
 /* An interface that can be used to schedule a particular probe after a given
    number of miliseconds passed. */
 void schedule_scan(int msecs, Target *target, unsigned short portno) {
-  NsockProbe *probe = (NsockProbe *)safe_malloc(sizeof(NsockProbe));
+  NsockProbe *probe = new NsockProbe();
   probe->target = target;
   probe->portno = portno;
   nsock_timer_create(mypool, sleep_callback, msecs, probe);
