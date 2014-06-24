@@ -204,6 +204,12 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
     assert(status == NSE_STATUS_SUCCESS);
     target->ports.setPortState(probe->portno, IPPROTO_TCP, PORT_OPEN);
     reason_id = ER_SYNACK;
+    if (probe->tryno > max_tryno && probe->tryno < o.getMaxRetransmissions()) {
+      /* This is a retried probe that sets a new retransmission limit. */
+      log_write(LOG_STDOUT, "Increasing max_tryno from %d to %d.\n", max_tryno,
+                probe->tryno);
+      max_tryno = probe->tryno;
+    }
   }
 
   target->ports.setStateReason(probe->portno, IPPROTO_TCP, reason_id, 0, NULL);
