@@ -135,7 +135,7 @@ public:
   unsigned short portno;
 };
 
-bool handle_next_host();
+bool send_next_probe();
 
 std::vector<Target *>::iterator next_target;
 std::vector<Target *> Targets;
@@ -145,7 +145,7 @@ int numports;
 nsock_pool mypool;
 
 /* Handles a scheduled probe timer. For more details, see the definition. */
-void sleep_callback(nsock_pool nsp, nsock_event evt, void *data);
+void scheduled_probe_callback(nsock_pool nsp, nsock_event evt, void *data);
 
 /* nsock_connect_* callback. This is where we the connect() result is
    interpreted and new probes are scheduled. */
@@ -210,7 +210,7 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   delete probe;
 
   /* Schedule another probe to keep a constant number of these. */
-  handle_next_host();
+  send_next_probe();
 }
 
 /* Start a nsock connection to the given target on a given port. */
@@ -240,23 +240,23 @@ void make_connection(Target *target, unsigned short portno) {
 
 /* An interface that can be used to schedule a particular probe after a given
    number of miliseconds passed. */
-void schedule_scan(int msecs, Target *target, unsigned short portno) {
+void schedule_probe(int msecs, Target *target, unsigned short portno) {
   NsockProbe *probe = new NsockProbe();
   probe->target = target;
   probe->portno = portno;
-  nsock_timer_create(mypool, sleep_callback, msecs, probe);
+  nsock_timer_create(mypool, scheduled_probe_callback, msecs, probe);
 }
 
 /* Handles a scheduled probe timer. This is the timer callback for
-   schedule_scan. */
-void sleep_callback(nsock_pool nsp, nsock_event evt, void *data) {
+   schedule_probe. */
+void scheduled_probe_callback(nsock_pool nsp, nsock_event evt, void *data) {
   assert(nse_status(evt) == NSE_STATUS_SUCCESS);
   NsockProbe *probe = (NsockProbe *)data;
   make_connection(probe->target, probe->portno);
 }
 
 /* Fires another probe. Returns false if all probes were sent. */
-bool handle_next_host() {
+bool send_next_probe() {
 
   if (next_target == Targets.end()) {
     current_port_idx++;
@@ -303,7 +303,7 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
   while(true) {
     if (scanning_now_count < get_max_parallelism()) {
       scanning_now_count++;
-      if(!handle_next_host())
+      if(!send_next_probe())
         break;
     } else
       break;
