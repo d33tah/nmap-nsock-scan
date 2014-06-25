@@ -129,6 +129,20 @@
 
 extern NmapOps o;
 
+class NsockScanInfo {
+public:
+  NsockScanInfo() {
+    max_tryno = 1;
+  }
+  std::vector<Target *>::iterator next_target;
+  std::vector<Target *> Targets;
+  int current_port_idx;
+  u16 *portarray;
+  int numports;
+  nsock_pool mypool;
+  int max_tryno;
+} nssi;
+
 class NsockProbe {
 public:
   Target *target;
@@ -138,15 +152,6 @@ public:
 
 bool send_next_probe();
 void make_connection(Target *target, unsigned short portno, int tryno);
-
-std::vector<Target *>::iterator next_target;
-std::vector<Target *> Targets;
-int current_port_idx;
-u16 *portarray;
-int numports;
-nsock_pool mypool;
-int max_tryno = 1;
-
 /* Handles a scheduled probe timer. For more details, see the definition. */
 void scheduled_probe_callback(nsock_pool nsp, nsock_event evt, void *data);
 
@@ -204,11 +209,12 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
     assert(status == NSE_STATUS_SUCCESS);
     target->ports.setPortState(probe->portno, IPPROTO_TCP, PORT_OPEN);
     reason_id = ER_SYNACK;
-    if (probe->tryno > max_tryno && probe->tryno < o.getMaxRetransmissions()) {
+    if (probe->tryno > nssi.max_tryno &&
+        probe->tryno < o.getMaxRetransmissions()) {
       /* This is a retried probe that sets a new retransmission limit. */
-      log_write(LOG_STDOUT, "Increasing max_tryno from %d to %d.\n", max_tryno,
-                probe->tryno);
-      max_tryno = probe->tryno;
+      log_write(LOG_STDOUT, "Increasing max_tryno from %d to %d.\n",
+                nssi.max_tryno, probe->tryno);
+      nssi.max_tryno = probe->tryno;
     }
   }
 
@@ -223,7 +229,7 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   } else {
     /* Otherwise, let's see if we can retry the probe to make sure it's
        filtered. */
-    if (probe->tryno < max_tryno + 1) {
+    if (probe->tryno < nssi.max_tryno + 1) {
       if (o.debugging)
         log_write(LOG_STDOUT, "Retrying the probe to %s:%d\n",
                   probe->target->targetipstr(), probe->portno);
@@ -246,7 +252,7 @@ void make_connection(Target *target, unsigned short portno, int tryno) {
   /* Translate target's IP to struct sockaddr_storage. */
   struct sockaddr_storage targetss;
   size_t targetsslen;
-  nsock_iod sock_nsi = nsi_new(mypool, NULL);
+  nsock_iod sock_nsi = nsi_new(nssi.mypool, NULL);
   if (sock_nsi == NULL)
     fatal("Failed to create nsock_iod.");
   if (nsi_set_hostname(sock_nsi, target->targetipstr()) == -1)
@@ -259,7 +265,7 @@ void make_connection(Target *target, unsigned short portno, int tryno) {
   probe->target = target;
   probe->portno = portno;
   probe->tryno = tryno;
-  nsock_connect_tcp(mypool, sock_nsi, connect_handler,
+  nsock_connect_tcp(nssi.mypool, sock_nsi, connect_handler,
                     1000, /* timeout */
                     (void *)probe,
                     (struct sockaddr *)&targetss, targetsslen,
@@ -272,7 +278,7 @@ void schedule_probe(int msecs, Target *target, unsigned short portno) {
   NsockProbe *probe = new NsockProbe();
   probe->target = target;
   probe->portno = portno;
-  nsock_timer_create(mypool, scheduled_probe_callback, msecs, probe);
+  nsock_timer_create(nssi.mypool, scheduled_probe_callback, msecs, probe);
 }
 
 /* Handles a scheduled probe timer. This is the timer callback for
@@ -286,17 +292,17 @@ void scheduled_probe_callback(nsock_pool nsp, nsock_event evt, void *data) {
 /* Fires another probe. Returns false if all probes were sent. */
 bool send_next_probe() {
 
-  if (next_target == Targets.end()) {
-    current_port_idx++;
-    if (current_port_idx >= numports) {
+  if (nssi.next_target == nssi.Targets.end()) {
+    nssi.current_port_idx++;
+    if (nssi.current_port_idx >= nssi.numports) {
       return false;
     }
-    next_target = Targets.begin();
+    nssi.next_target = nssi.Targets.begin();
   }
 
-  unsigned short portno = portarray[current_port_idx];
-  Target *target = *next_target;
-  next_target++;
+  unsigned short portno = nssi.portarray[nssi.current_port_idx];
+  Target *target = *(nssi.next_target);
+  nssi.next_target++;
   make_connection(target, portno, 0);
   return true;
 }
@@ -316,19 +322,19 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
 
   /* Initialize the global variables. Maybe I should move these to a new
      NsockScanInfo class and make its instance global instead? */
-  portarray = portarray_arg;
-  numports = numports_arg;
-  Targets = Targets_arg;
+  nssi.portarray = portarray_arg;
+  nssi.numports = numports_arg;
+  nssi.Targets = Targets_arg;
 
   /* Initialize the Nsock pool. */
-  mypool = nsp_new(NULL);
-  if (mypool == NULL)
+  nssi.mypool = nsp_new(NULL);
+  if (nssi.mypool == NULL)
     fatal("Failed to create nsock_pool.");
 
   /* Schedule the first probes. Setting current_port_idx to -1 and next_target
      to Targets.end() will force a reset in the next send_next_probe() call. */
-  current_port_idx = -1;
-  next_target = Targets.end();
+  nssi.current_port_idx = -1;
+  nssi.next_target = nssi.Targets.end();
   while(true) {
     if (scanning_now_count < get_max_parallelism()) {
       scanning_now_count++;
@@ -339,13 +345,13 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
   }
 
   /* Jump into the main loop. Handle any unexpected errors. */
-  enum nsock_loopstatus looprc = nsock_loop(mypool, -1);
+  enum nsock_loopstatus looprc = nsock_loop(nssi.mypool, -1);
   if (looprc == NSOCK_LOOP_ERROR) {
-    int err = nsp_geterrorcode(mypool);
+    int err = nsp_geterrorcode(nssi.mypool);
     fatal("nsock_scan: unexpected nsock_loop error.  Error code %d (%s)", err,
           socket_strerror(err));
   }
 
   /* The main loop is done and so is nsock_scan. Destroy the pool. */
-  nsp_delete(mypool);
+  nsp_delete(nssi.mypool);
 }
