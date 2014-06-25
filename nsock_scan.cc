@@ -126,21 +126,27 @@
 #include "nsock_scan.h"
 #include "nmap_error.h"
 #include "NmapOps.h"
+#include <map>
 
 extern NmapOps o;
 
-class NsockScanInfo {
+class NsockHostScanStats {
 public:
-  NsockScanInfo() {
+  NsockHostScanStats() {
     max_tryno = 1;
   }
+  int max_tryno;
+};
+
+class NsockScanInfo {
+public:
   std::vector<Target *>::iterator next_target;
   std::vector<Target *> Targets;
   int current_port_idx;
   u16 *portarray;
   int numports;
   nsock_pool nsp;
-  int max_tryno;
+  std::map<Target*, NsockHostScanStats> nhss_map;
 } nssi;
 
 class NsockProbe {
@@ -210,12 +216,13 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
     assert(status == NSE_STATUS_SUCCESS);
     target->ports.setPortState(probe->portno, IPPROTO_TCP, PORT_OPEN);
     reason_id = ER_SYNACK;
-    if (probe->tryno > nssi.max_tryno &&
+    if (probe->tryno > nssi.nhss_map[probe->target].max_tryno &&
         probe->tryno < o.getMaxRetransmissions()) {
       /* This is a retried probe that sets a new retransmission limit. */
-      log_write(LOG_STDOUT, "Increasing max_tryno from %d to %d.\n",
-                nssi.max_tryno, probe->tryno);
-      nssi.max_tryno = probe->tryno;
+      log_write(LOG_STDOUT, "Increasing max_tryno from %d to %d for %s.\n",
+                nssi.nhss_map[probe->target].max_tryno, probe->tryno,
+                probe->target->targetipstr());
+      nssi.nhss_map[probe->target].max_tryno = probe->tryno;
     }
   }
 
@@ -231,7 +238,7 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   } else {
     /* Otherwise, let's see if we can retry the probe to make sure it's
        filtered. */
-    if (probe->tryno < nssi.max_tryno + 1) {
+    if (probe->tryno < nssi.nhss_map[probe->target].max_tryno + 1) {
       if (o.debugging)
         log_write(LOG_STDOUT, "Retrying the probe to %s:%d\n",
                   probe->target->targetipstr(), probe->portno);
