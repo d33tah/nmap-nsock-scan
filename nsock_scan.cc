@@ -201,7 +201,8 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
   /* Handle the TCP connection timeout. For now we just assume that it's
      dropped by the firewall, not congestion. */
   } else if (status == NSE_STATUS_TIMEOUT) {
-    target->ports.setPortState(probe->portno, IPPROTO_TCP, PORT_FILTERED);
+    if (probe->tryno == 0)
+      target->ports.setPortState(probe->portno, IPPROTO_TCP, PORT_FILTERED);
     reason_id = ER_NORESPONSE;
 
   /* We managed to connect! */
