@@ -151,7 +151,7 @@ public:
 };
 
 bool send_next_probe();
-void make_connection(Target *target, unsigned short portno, int tryno);
+void make_connection(NsockProbe* probe);
 /* Handles a scheduled probe timer. For more details, see the definition. */
 void scheduled_probe_callback(nsock_pool nsp, nsock_event evt, void *data);
 
@@ -225,6 +225,7 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
   if (status != NSE_STATUS_TIMEOUT) {
     /* If this was either a closed or open port, just go on. */
+    delete probe;
     send_next_probe();
   } else {
     /* Otherwise, let's see if we can retry the probe to make sure it's
@@ -233,43 +234,48 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
       if (o.debugging)
         log_write(LOG_STDOUT, "Retrying the probe to %s:%d\n",
                   probe->target->targetipstr(), probe->portno);
-      make_connection(probe->target, probe->portno, probe->tryno + 1);
+      probe->tryno++;
+      make_connection(probe);
     } else {
       /* We can't retry the probe, so let's send next "normal" probe to keep
          the number of outstanding probes. */
       if (o.verbose)
          log_write(LOG_STDOUT, "Giving up on %s:%d\n",
                   probe->target->targetipstr(), probe->portno);
+      delete probe;
       send_next_probe();
     }
   }
-  delete probe;
 }
 
-/* Start a nsock connection to the given target on a given port. */
-void make_connection(Target *target, unsigned short portno, int tryno) {
-
+void make_connection(NsockProbe *probe) {
   /* Translate target's IP to struct sockaddr_storage. */
   struct sockaddr_storage targetss;
   size_t targetsslen;
   nsock_iod sock_nsi = nsi_new(nssi.mypool, NULL);
   if (sock_nsi == NULL)
     fatal("Failed to create nsock_iod.");
-  if (nsi_set_hostname(sock_nsi, target->targetipstr()) == -1)
+  if (nsi_set_hostname(sock_nsi, probe->target->targetipstr()) == -1)
     fatal("Failed to set hostname on iod.");
-  if (target->TargetSockAddr(&targetss, &targetsslen) != 0)
+  if (probe->target->TargetSockAddr(&targetss, &targetsslen) != 0)
     fatal("Failed to get target socket address in %s", __func__);
+
+  nsock_connect_tcp(nssi.mypool, sock_nsi, connect_handler,
+                    1000, /* timeout */
+                    (void *)probe,
+                    (struct sockaddr *)&targetss, targetsslen,
+                    probe->portno);
+}
+
+/* Start a nsock connection to the given target on a given port. */
+void make_connection(Target *target, unsigned short portno, int tryno) {
 
   /* Prepare NsockProbe and run nsock_connect_tcp. */
   NsockProbe *probe = new NsockProbe();
   probe->target = target;
   probe->portno = portno;
   probe->tryno = tryno;
-  nsock_connect_tcp(nssi.mypool, sock_nsi, connect_handler,
-                    1000, /* timeout */
-                    (void *)probe,
-                    (struct sockaddr *)&targetss, targetsslen,
-                    portno);
+  make_connection(probe);
 }
 
 /* An interface that can be used to schedule a particular probe after a given
