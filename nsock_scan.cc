@@ -139,7 +139,7 @@ public:
   int current_port_idx;
   u16 *portarray;
   int numports;
-  nsock_pool mypool;
+  nsock_pool nsp;
   int max_tryno;
 } nssi;
 
@@ -252,7 +252,7 @@ void make_connection(NsockProbe *probe) {
   /* Translate target's IP to struct sockaddr_storage. */
   struct sockaddr_storage targetss;
   size_t targetsslen;
-  nsock_iod sock_nsi = nsi_new(nssi.mypool, NULL);
+  nsock_iod sock_nsi = nsi_new(nssi.nsp, NULL);
   if (sock_nsi == NULL)
     fatal("Failed to create nsock_iod.");
   if (nsi_set_hostname(sock_nsi, probe->target->targetipstr()) == -1)
@@ -260,7 +260,7 @@ void make_connection(NsockProbe *probe) {
   if (probe->target->TargetSockAddr(&targetss, &targetsslen) != 0)
     fatal("Failed to get target socket address in %s", __func__);
 
-  nsock_connect_tcp(nssi.mypool, sock_nsi, connect_handler,
+  nsock_connect_tcp(nssi.nsp, sock_nsi, connect_handler,
                     1000, /* timeout */
                     (void *)probe,
                     (struct sockaddr *)&targetss, targetsslen,
@@ -284,7 +284,7 @@ void schedule_probe(int msecs, Target *target, unsigned short portno) {
   NsockProbe *probe = new NsockProbe();
   probe->target = target;
   probe->portno = portno;
-  nsock_timer_create(nssi.mypool, scheduled_probe_callback, msecs, probe);
+  nsock_timer_create(nssi.nsp, scheduled_probe_callback, msecs, probe);
 }
 
 /* Handles a scheduled probe timer. This is the timer callback for
@@ -333,8 +333,8 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
   nssi.Targets = Targets_arg;
 
   /* Initialize the Nsock pool. */
-  nssi.mypool = nsp_new(NULL);
-  if (nssi.mypool == NULL)
+  nssi.nsp = nsp_new(NULL);
+  if (nssi.nsp == NULL)
     fatal("Failed to create nsock_pool.");
 
   /* Schedule the first probes. Setting current_port_idx to -1 and next_target
@@ -351,13 +351,13 @@ void nsock_scan(std::vector<Target *> &Targets_arg, u16 *portarray_arg, int nump
   }
 
   /* Jump into the main loop. Handle any unexpected errors. */
-  enum nsock_loopstatus looprc = nsock_loop(nssi.mypool, -1);
+  enum nsock_loopstatus looprc = nsock_loop(nssi.nsp, -1);
   if (looprc == NSOCK_LOOP_ERROR) {
-    int err = nsp_geterrorcode(nssi.mypool);
+    int err = nsp_geterrorcode(nssi.nsp);
     fatal("nsock_scan: unexpected nsock_loop error.  Error code %d (%s)", err,
           socket_strerror(err));
   }
 
   /* The main loop is done and so is nsock_scan. Destroy the pool. */
-  nsp_delete(nssi.mypool);
+  nsp_delete(nssi.nsp);
 }
