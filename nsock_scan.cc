@@ -250,6 +250,7 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
 
 void make_connection(NsockProbe *probe) {
   /* Translate target's IP to struct sockaddr_storage. */
+  /* TODO: can this be reused? */
   struct sockaddr_storage targetss;
   size_t targetsslen;
   nsock_iod sock_nsi = nsi_new(nssi.nsp, NULL);
