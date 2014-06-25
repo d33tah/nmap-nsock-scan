@@ -263,6 +263,18 @@ void make_connection(NsockProbe *probe) {
   nsock_iod sock_nsi = nsi_new(nssi.nsp, NULL);
   if (sock_nsi == NULL)
     fatal("Failed to create nsock_iod.");
+
+  /* The following is copied from l_connect from nse_nsock.cc. */
+  if (o.spoofsource) {
+    struct sockaddr_storage ss;
+    size_t sslen;
+
+    o.SourceSockAddr(&ss, &sslen);
+    nsi_set_localaddr(sock_nsi, &ss, sslen);
+  }
+  if (o.ipoptionslen)
+    nsi_set_ipoptions(sock_nsi, o.ipoptions, o.ipoptionslen);
+
   if (nsi_set_hostname(sock_nsi, probe->target->targetipstr()) == -1)
     fatal("Failed to set hostname on iod.");
   if (probe->target->TargetSockAddr(&targetss, &targetsslen) != 0)
