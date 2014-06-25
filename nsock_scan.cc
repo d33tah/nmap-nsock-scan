@@ -219,10 +219,9 @@ void connect_handler(nsock_pool nsp, nsock_event evt, void *data)
     if (probe->tryno > nssi.nhss_map[probe->target].max_tryno &&
         probe->tryno < o.getMaxRetransmissions()) {
       /* This is a retried probe that sets a new retransmission limit. */
-      log_write(LOG_STDOUT, "Increasing max_tryno from %d to %d for %s.\n",
-                nssi.nhss_map[probe->target].max_tryno, probe->tryno,
-                probe->target->targetipstr());
       nssi.nhss_map[probe->target].max_tryno = probe->tryno;
+      log_write(LOG_STDOUT, "Increased max_tryno for %s to %d (packet drop).\n",
+                probe->target->targetipstr(), probe->tryno);
     }
   }
 
